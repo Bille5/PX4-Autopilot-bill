@@ -1,0 +1,14 @@
+#!/bin/sh
+#
+# ASAD-v1.1 board specific sensors init
+#------------------------------------------------------------------------------
+
+# IMU - ICM-20948 on I2C1 bus (PB8/PB9)
+# -R rotation, 0 = no rotation (adjust after physical installation)
+icm20948 -R 0 -b 1 -I start
+
+# Barometer - LPS22HH on I2C1 bus (shared with IMU)
+lps22hb -b 1 -I start
+
+# Power monitor - INA226 on I2C2 bus (PB10/PB11)
+ina226 -b 2 -I start
