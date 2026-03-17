@@ -39,24 +39,19 @@
 # add core flight tasks to list
 set(flight_tasks_all)
 list(APPEND flight_tasks_all
-	Auto
-	Descend
-	Failsafe
-	ManualAcceleration
-	ManualAccelerationSlow
-	ManualAltitude
-	ManualAltitudeSmoothVel
-	ManualPosition
-	Transition
-	AltitudeCruise
+        Auto
+        Descend
+        Failsafe
+        ManualAltitude
+        ManualAltitudeSmoothVel
+        ManualAcceleration
+        ManualAccelerationSlow
+        ManualPosition
+        Transition
+        AltitudeCruise
+        AutoFollowTarget
+        Orbit
 )
-
-if(NOT px4_constrained_flash_build)
-	list(APPEND flight_tasks_all
-		AutoFollowTarget
-		Orbit
-	)
-endif()
 
 # set the files to be generated
 set(files_to_generate
