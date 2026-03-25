@@ -134,6 +134,14 @@ __EXPORT void stm32_boardinitialize(void)
 }
 
 /****************************************************************************
+ * Name: board_read_VBUS_state
+ ****************************************************************************/
+int board_read_VBUS_state(void)
+{
+        return 0; /* USB VBUS sensing not implemented */
+}
+
+/****************************************************************************
  * Name: board_app_initialize
  *
  * Description:

@@ -55,6 +55,12 @@
  * separate switch, we need to build independent of the
  * CONFIG_ARCH_LEDS configuration switch.
  */
+
+ 
+/*  NO LEDS HERE!    */
+#define GPIO_nLED_BLUE  0
+#define GPIO_nLED_GREEN 0
+ 
 __BEGIN_DECLS
 extern void led_init(void);
 extern void led_on(int led);
