@@ -81,7 +81,7 @@
 
 /* PWM outputs
  *
- * 6 outputs on PD3-PD8
+ * 6 outputs: PE9,PE11,PE13,PE14 (TIM1), PE5,PE6 (TIM15)
  * Fixed wing: motor + servos
  */
 
