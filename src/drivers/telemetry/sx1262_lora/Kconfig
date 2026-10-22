@@ -1,0 +1,5 @@
+menuconfig DRIVERS_TELEMETRY_SX1262_LORA
+	bool "sx1262_lora"
+	default n
+	---help---
+		SX1262 (Ebyte E22-900MM22S) LoRa MAVLink link driver

@@ -172,6 +172,7 @@
 #define DRV_SENS_DEVTYPE_IRLOCK       0x7d
 #define DRV_SENS_DEVTYPE_PCF8583      0x7e
 #define DRV_TEL_DEVTYPE_BST           0x7f
+#define DRV_TEL_DEVTYPE_SX1262        0x7e
 
 // Generic types for unknown CAN sensors
 #define DRV_ACC_DEVTYPE_UAVCAN	0x80

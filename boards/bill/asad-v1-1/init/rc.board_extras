@@ -8,8 +8,20 @@
 # 	atxxxx start -s
 # fi
 
-atxxxx start -s
+#atxxxx start -s
 
+
+# DShot telemetry is always on UART7
+# dshot telemetry -d /dev/ttyS5
+
+
+#!/bin/sh
+#
+# board specific extras init
+#------------------------------------------------------------------------------
+
+# LoRa telemetry link (creates /dev/lora0)
+ sx1262_lora start
 
 # DShot telemetry is always on UART7
 # dshot telemetry -d /dev/ttyS5
