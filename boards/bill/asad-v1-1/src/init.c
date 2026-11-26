@@ -59,6 +59,7 @@
 #include <px4_platform_common/init.h>
 #include <px4_platform/gpio.h>
 #include <px4_platform/board_dma_alloc.h>
+#include <parameters/flashparams/flashfs.h>
 
 __BEGIN_DECLS
 extern void led_init(void);
@@ -186,6 +187,18 @@ __EXPORT int board_app_initialize(uintptr_t arg)
 	}
 
 #endif
+
+	/* The linker and bootloader reserve the final flash sector for parameters. */
+	static sector_descriptor_t params_sector_map[] = {
+		{15, 128 * 1024, 0x081E0000},
+		{0, 0, 0},
+	};
+
+	int params_result = parameter_flashfs_init(params_sector_map, NULL, 0);
+
+	if (params_result != OK) {
+		syslog(LOG_ERR, "[boot] FAILED to init params in FLASH %d\n", params_result);
+	}
 
 	/* Configure the HW based on the manifest */
 	px4_platform_configure();

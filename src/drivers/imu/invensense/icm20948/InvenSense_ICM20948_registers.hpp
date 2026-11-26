@@ -77,6 +77,7 @@ enum class BANK_0 : uint8_t {
 	USER_CTRL            = 0x03,
 
 	PWR_MGMT_1           = 0x06,
+	PWR_MGMT_2           = 0x07,
 
 	INT_PIN_CFG          = 0x0F,
 
@@ -84,6 +85,7 @@ enum class BANK_0 : uint8_t {
 
 	I2C_MST_STATUS       = 0x17,
 
+	ACCEL_XOUT_H         = 0x2D,
 	TEMP_OUT_H           = 0x39,
 	TEMP_OUT_L           = 0x3A,
 	EXT_SLV_SENS_DATA_00 = 0x3B,
@@ -106,6 +108,7 @@ enum class BANK_2 : uint8_t {
 	GYRO_SMPLRT_DIV      = 0x00,
 	GYRO_CONFIG_1        = 0x01,
 
+	ACCEL_SMPLRT_DIV_1   = 0x10,
 	ACCEL_SMPLRT_DIV_2   = 0x11,
 
 	ACCEL_CONFIG         = 0x14,

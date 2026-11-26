@@ -44,6 +44,7 @@
 
 static constexpr uint8_t WHO_AM_I = 0x0F;
 static constexpr uint8_t LPS22HB_ID_WHO_AM_I = 0xB1;
+static constexpr uint8_t LPS22HH_ID_WHO_AM_I = 0xB3;
 
 static constexpr uint8_t CTRL_REG1 = 0x10;
 static constexpr uint8_t CTRL_REG2 = 0x11;
@@ -75,7 +76,7 @@ static constexpr uint8_t TEMP_OUT_H = 0x2C;
 
 /* interface factories */
 extern device::Device *LPS22HB_SPI_interface(int bus, uint32_t devid, int bus_frequency, spi_mode_e spi_mode);
-extern device::Device *LPS22HB_I2C_interface(int bus, int bus_frequency);
+extern device::Device *LPS22HB_I2C_interface(int bus, int bus_frequency, uint8_t address, bool is_lps22hh);
 
 class LPS22HB : public I2CSPIDriver<LPS22HB>
 {
@@ -96,6 +97,7 @@ private:
 	uORB::PublicationMulti<sensor_baro_s> _sensor_baro_pub{ORB_ID(sensor_baro)};
 
 	device::Device		*_interface;
+	const bool		_is_lps22hh;
 
 	bool			_collect_phase{false};
 

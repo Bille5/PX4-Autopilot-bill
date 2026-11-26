@@ -34,7 +34,7 @@
 /**
  * @file ICM20948_I2C_Passthrough.hpp
  *
- * Driver for the Invensense ICM20948 connected via SPI.
+ * I2C driver with magnetometer passthrough and optional motion publishing.
  *
  */
 
@@ -43,7 +43,9 @@
 #include "InvenSense_ICM20948_registers.hpp"
 
 #include <drivers/drv_hrt.h>
+#include <lib/drivers/accelerometer/PX4Accelerometer.hpp>
 #include <lib/drivers/device/i2c.h>
+#include <lib/drivers/gyroscope/PX4Gyroscope.hpp>
 #include <lib/perf/perf_counter.h>
 #include <px4_platform_common/i2c_spi_buses.h>
 
@@ -74,15 +76,29 @@ private:
 	bool Reset();
 
 	bool Configure();
+	bool ConfigureMotion();
+	bool ReadMotion(hrt_abstime timestamp_sample);
+	bool UpdateTemperature(int16_t raw_temperature);
 
-	void SelectRegisterBank(enum REG_BANK_SEL_BIT bank, bool force = false);
-	void SelectRegisterBank(Register::BANK_0 reg) { SelectRegisterBank(REG_BANK_SEL_BIT::USER_BANK_0); }
+	bool SelectRegisterBank(enum REG_BANK_SEL_BIT bank, bool force = false);
+	bool SelectRegisterBank(Register::BANK_0) { return SelectRegisterBank(REG_BANK_SEL_BIT::USER_BANK_0); }
+	bool SelectRegisterBank(Register::BANK_2) { return SelectRegisterBank(REG_BANK_SEL_BIT::USER_BANK_2); }
 
 	template <typename T> bool RegisterCheck(const T &reg_cfg);
 
 	template <typename T> uint8_t RegisterRead(T reg);
-	template <typename T> void RegisterWrite(T reg, uint8_t value);
+	template <typename T> bool RegisterWrite(T reg, uint8_t value);
 	template <typename T> void RegisterSetAndClearBits(T reg, uint8_t setbits, uint8_t clearbits);
+
+	struct MotionPublishers {
+		MotionPublishers(uint32_t device_id, enum Rotation rotation);
+		PX4Accelerometer accel;
+		PX4Gyroscope gyro;
+	};
+
+	const bool _publish_motion;
+	const enum Rotation _rotation;
+	MotionPublishers *_motion{nullptr};
 
 	perf_counter_t _reset_perf{perf_alloc(PC_COUNT, MODULE_NAME": reset")};
 	perf_counter_t _bad_register_perf{perf_alloc(PC_COUNT, MODULE_NAME": bad register")};

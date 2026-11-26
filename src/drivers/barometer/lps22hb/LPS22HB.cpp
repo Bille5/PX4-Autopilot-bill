@@ -42,9 +42,15 @@
 /* Max measurement rate is 25Hz */
 #define LPS22HB_CONVERSION_INTERVAL	(1000000 / 25)	/* microseconds */
 
+// LPS22HH continuous mode: 25 Hz, low-pass filter, and block data update.
+static constexpr uint8_t LPS22HH_CTRL1 = (3 << 4) | (1 << 3) | (1 << 2) | (1 << 1);
+static constexpr uint8_t LPS22HH_CTRL2 = IF_ADD_INC | (1 << 1); // Low noise
+static constexpr uint32_t LPS22HH_POLL_INTERVAL_US = 1000000 / 50;
+
 LPS22HB::LPS22HB(const I2CSPIDriverConfig &config, device::Device *interface) :
 	I2CSPIDriver(config),
 	_interface(interface),
+	_is_lps22hh(interface->get_device_type() == DRV_BARO_DEVTYPE_LPS22HH),
 	_sample_perf(perf_alloc(PC_ELAPSED, MODULE_NAME": read")),
 	_comms_errors(perf_alloc(PC_COUNT, MODULE_NAME": comms errors"))
 {
@@ -61,6 +67,15 @@ LPS22HB::~LPS22HB()
 
 int LPS22HB::init()
 {
+	if (_is_lps22hh) {
+		if (write_reg(CTRL_REG2, LPS22HH_CTRL2) != PX4_OK || write_reg(CTRL_REG1, LPS22HH_CTRL1) != PX4_OK) {
+			return PX4_ERROR;
+		}
+
+		ScheduleOnInterval(LPS22HH_POLL_INTERVAL_US, LPS22HB_CONVERSION_INTERVAL);
+		return PX4_OK;
+	}
+
 	if (reset() != OK) {
 		return PX4_ERROR;
 	}
@@ -86,6 +101,11 @@ int LPS22HB::reset()
 
 void LPS22HB::RunImpl()
 {
+	if (_is_lps22hh) {
+		collect();
+		return;
+	}
+
 	/* collection phase? */
 	if (_collect_phase) {
 
@@ -149,11 +169,21 @@ int LPS22HB::collect()
 		return ret;
 	}
 
-	uint32_t TEMP_OUT = report.TEMP_OUT_L + (report.TEMP_OUT_H << 8);
-	float temperature = 42.5f + (TEMP_OUT / 480.0f);
+	if (_is_lps22hh && (report.STATUS & (P_DA | T_DA)) != (P_DA | T_DA)) {
+		perf_end(_sample_perf);
+		return -EAGAIN;
+	}
+
+	const uint16_t temperature_raw = report.TEMP_OUT_L | (report.TEMP_OUT_H << 8);
+	const float temperature = _is_lps22hh ? static_cast<int16_t>(temperature_raw) / 100.f
+				  : 42.5f + temperature_raw / 480.f;
 
 	// To obtain the pressure in hPa, take the two’s complement of the complete word and then divide by 4096 LSB/hPa.
-	uint32_t P = report.PRESS_OUT_XL + (report.PRESS_OUT_L << 8) + (report.PRESS_OUT_H << 16);
+	int32_t P = report.PRESS_OUT_XL | (report.PRESS_OUT_L << 8) | (report.PRESS_OUT_H << 16);
+
+	if (_is_lps22hh && (P & 0x800000)) {
+		P -= 0x1000000;
+	}
 
 	/* Pressure and MSL in mBar */
 	float pressure = P / 4096.0f;

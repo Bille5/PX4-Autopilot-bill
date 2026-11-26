@@ -41,12 +41,10 @@
 
 #include <drivers/device/i2c.h>
 
-device::Device *LPS22HB_I2C_interface(int bus, int bus_frequency);
-
 class LPS22HB_I2C : public device::I2C
 {
 public:
-	LPS22HB_I2C(int bus, int bus_frequency);
+	LPS22HB_I2C(int bus, int bus_frequency, uint8_t address, bool is_lps22hh);
 	~LPS22HB_I2C() override = default;
 
 	int	read(unsigned address, void *data, unsigned count) override;
@@ -55,16 +53,19 @@ public:
 protected:
 	int	probe() override;
 
+private:
+	const uint8_t _expected_id;
 };
 
 device::Device *
-LPS22HB_I2C_interface(int bus, int bus_frequency)
+LPS22HB_I2C_interface(int bus, int bus_frequency, uint8_t address, bool is_lps22hh)
 {
-	return new LPS22HB_I2C(bus, bus_frequency);
+	return new LPS22HB_I2C(bus, bus_frequency, address, is_lps22hh);
 }
 
-LPS22HB_I2C::LPS22HB_I2C(int bus, int bus_frequency) :
-	I2C(DRV_BARO_DEVTYPE_LPS22HB, MODULE_NAME, bus, LPS22HB_ADDRESS, bus_frequency)
+LPS22HB_I2C::LPS22HB_I2C(int bus, int bus_frequency, uint8_t address, bool is_lps22hh) :
+	I2C(is_lps22hh ? DRV_BARO_DEVTYPE_LPS22HH : DRV_BARO_DEVTYPE_LPS22HB, MODULE_NAME, bus, address, bus_frequency),
+	_expected_id(is_lps22hh ? LPS22HH_ID_WHO_AM_I : LPS22HB_ID_WHO_AM_I)
 {
 }
 
@@ -77,8 +78,8 @@ int LPS22HB_I2C::probe()
 		return -EIO;
 	}
 
-	if (id != LPS22HB_ID_WHO_AM_I) {
-		DEVICE_DEBUG("ID byte mismatch (%02x != %02x)", LPS22HB_ID_WHO_AM_I, id);
+	if (id != _expected_id) {
+		DEVICE_DEBUG("ID byte mismatch (%02x != %02x)", _expected_id, id);
 		return -EIO;
 	}
 

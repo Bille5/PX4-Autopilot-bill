@@ -54,6 +54,8 @@
  * Definitions
  ****************************************************************************************************/
 
+#define FLASH_BASED_PARAMS
+
 /* No status LEDs on this board */
 
 /* SPI1 CS - LoRa E22-900MM22S */
@@ -66,6 +68,13 @@
 #define GPIO_LORA_RXEN          /* PD14 */ (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_CLEAR|GPIO_PORTD|GPIO_PIN14)
 #define GPIO_LORA_NRST          /* PD13 */ (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_SET|GPIO_PORTD|GPIO_PIN13)
 #define GPIO_LORA_BUSY          /* PC12 */ (GPIO_INPUT|GPIO_PULLDOWN|GPIO_PORTC|GPIO_PIN12)
+
+/* INA226 monitors J4 ahead of the RT6150A regulator and 0.1 ohm shunt. */
+#define BOARD_INPUT_POWER_INA226_BUS     2
+#define BOARD_INPUT_POWER_INA226_ADDRESS 0x40
+/* Conservative J4 preflight limits within the regulator's input rating. */
+#define BOARD_INPUT_POWER_MIN_V          3.0f
+#define BOARD_INPUT_POWER_MAX_V          5.25f
 
 /* INA226 alert */
 

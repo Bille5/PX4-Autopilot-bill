@@ -40,6 +40,11 @@
 
 
 #include <px4_platform_common/px4_config.h>
+#include <px4_platform_common/board_common.h>
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+# include <uORB/Publication.hpp>
+# include <uORB/topics/power_monitor.h>
+#endif
 #include <px4_platform_common/getopt.h>
 #include <drivers/device/i2c.h>
 #include <lib/perf/perf_counter.h>
@@ -199,6 +204,10 @@ private:
 	uint16_t          _config{INA226_CONFIG};
 	float             _current_lsb{_max_current / DN_MAX};
 	float             _power_lsb{25.0f * _current_lsb};
+
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+	uORB::Publication<power_monitor_s> _input_power_pub{ORB_ID(board_input_power)};
+#endif
 
 	Battery 		  _battery;
 	uORB::SubscriptionInterval _parameter_update_sub{ORB_ID(parameter_update), 1_s};

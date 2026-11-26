@@ -43,6 +43,8 @@ void ICM20948_I2C_Passthrough::print_usage()
 	PRINT_MODULE_USAGE_COMMAND("start");
 	PRINT_MODULE_USAGE_PARAMS_I2C_SPI_DRIVER(true, false);
 	PRINT_MODULE_USAGE_PARAMS_I2C_ADDRESS(0x69);
+	PRINT_MODULE_USAGE_PARAM_FLAG('A', "Publish accelerometer and gyroscope", true);
+	PRINT_MODULE_USAGE_PARAM_INT('R', 0, 0, 35, "Rotation", true);
 	PRINT_MODULE_USAGE_DEFAULT_COMMANDS();
 }
 
@@ -53,7 +55,21 @@ extern "C" int icm20948_i2c_passthrough_main(int argc, char *argv[])
 	cli.default_i2c_frequency = I2C_SPEED;
 	cli.i2c_address = I2C_ADDRESS_DEFAULT;
 
-	const char *verb = cli.parseDefaultArguments(argc, argv);
+	int ch;
+
+	while ((ch = cli.getOpt(argc, argv, "AR:")) != EOF) {
+		switch (ch) {
+		case 'A':
+			cli.custom1 = 1;
+			break;
+
+		case 'R':
+			cli.rotation = (enum Rotation)atoi(cli.optArg());
+			break;
+		}
+	}
+
+	const char *verb = cli.optArg();
 
 	if (!verb) {
 		ThisDriver::print_usage();

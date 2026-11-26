@@ -37,7 +37,12 @@
 
 #include <lib/hysteresis/hysteresis.h>
 #include <uORB/Subscription.hpp>
-#include <uORB/topics/system_power.h>
+#include <px4_platform_common/board_common.h>
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+# include <uORB/topics/power_monitor.h>
+#else
+# include <uORB/topics/system_power.h>
+#endif
 
 class PowerChecks : public HealthAndArmingCheckBase
 {
@@ -48,8 +53,14 @@ public:
 	void checkAndReport(const Context &context, Report &reporter) override;
 
 private:
+	void checkPowerModuleCount(int power_module_count, Report &reporter);
+
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+	uORB::Subscription _input_power_sub{ORB_ID(board_input_power)};
+#else
 	uORB::Subscription _system_power_sub{ORB_ID(system_power)};
 	bool _overcurrent_warning_sent{false};
+#endif
 	systemlib::Hysteresis _voltage_low_hysteresis{false};
 	systemlib::Hysteresis _voltage_high_hysteresis{false};
 

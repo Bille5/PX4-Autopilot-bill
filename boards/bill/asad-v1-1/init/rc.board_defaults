@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# Flight controller mounting: yaw 180 degrees relative to the airframe.
+param set-default SENS_BOARD_ROT 4
+
+# Quectel L76 GPS on UART4.
+param set-default SER_GPS1_BAUD 9600
+param set-default GPS_1_PROTOCOL 6
+
+# INA226 bench current estimate with the ASAD shunt.
+param set-default INA226_SHUNT 0.1
+param set-default INA226_CURRENT 1

@@ -4,11 +4,14 @@
 #------------------------------------------------------------------------------
 
 # IMU - ICM-20948 on I2C1 bus (PB8/PB9)
-# -R rotation, 0 = no rotation (adjust after physical installation)
-icm20948 -R 0 -b 1 -I start
+icm20948_i2c_passthrough -I -b 1 -a 0x68 -A start
 
 # Barometer - LPS22HH on I2C1 bus (shared with IMU)
-lps22hb -b 1 -I start
+lps22hb -H -I -b 1 -a 0x5c -f 100 start
 
 # Power monitor - INA226 on I2C2 bus (PB10/PB11)
-ina226 -b 2 -I start
+ina226 -I -b 2 -a 0x40 start
+
+# Wait for the ICM-20948 to enable passthrough to its compass.
+usleep 100000
+ak09916 -I -b 1 -a 0x0c start

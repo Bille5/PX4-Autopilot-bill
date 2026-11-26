@@ -33,7 +33,22 @@
 
 #include "ICM20948_I2C_Passthrough.hpp"
 
+#include <mathlib/mathlib.h>
+
 using namespace time_literals;
+
+namespace
+{
+// Sample the live data registers at 200 Hz. The chip produces data at
+// about 225 Hz with its low-pass filters enabled and a divider of 4.
+constexpr uint32_t motion_interval_us = 5_ms;
+constexpr uint8_t sample_rate_divider = 4;
+constexpr uint8_t filter_setting = Bit4 | Bit3;
+constexpr uint8_t accel_config = filter_setting | ACCEL_FS_SEL_16G | ACCEL_FCHOICE;
+constexpr uint8_t gyro_config = filter_setting | GYRO_FS_SEL_2000_DPS | GYRO_FCHOICE;
+constexpr float accel_range = 16.f * CONSTANTS_ONE_G;
+constexpr float gyro_range = math::radians(2000.f);
+}
 
 static constexpr int16_t combine(uint8_t msb, uint8_t lsb)
 {
@@ -42,12 +57,25 @@ static constexpr int16_t combine(uint8_t msb, uint8_t lsb)
 
 ICM20948_I2C_Passthrough::ICM20948_I2C_Passthrough(const I2CSPIDriverConfig &config) :
 	I2C(config),
-	I2CSPIDriver(config)
+	I2CSPIDriver(config),
+	_publish_motion(config.custom1 == 1),
+	_rotation(config.rotation)
 {
+}
+
+ICM20948_I2C_Passthrough::MotionPublishers::MotionPublishers(uint32_t device_id, enum Rotation rotation) :
+	accel(device_id, rotation),
+	gyro(device_id, rotation)
+{
+	accel.set_scale(CONSTANTS_ONE_G / 2048.f);
+	accel.set_range(accel_range);
+	gyro.set_scale(math::radians(1.f / 16.4f));
+	gyro.set_range(gyro_range);
 }
 
 ICM20948_I2C_Passthrough::~ICM20948_I2C_Passthrough()
 {
+	delete _motion;
 	perf_free(_reset_perf);
 	perf_free(_bad_register_perf);
 	perf_free(_bad_transfer_perf);
@@ -60,6 +88,14 @@ int ICM20948_I2C_Passthrough::init()
 	if (ret != PX4_OK) {
 		DEVICE_DEBUG("I2C::init failed (%i)", ret);
 		return ret;
+	}
+
+	if (_publish_motion) {
+		_motion = new MotionPublishers(get_device_id(), _rotation);
+
+		if (_motion == nullptr) {
+			return -ENOMEM;
+		}
 	}
 
 	return Reset() ? 0 : -1;
@@ -155,7 +191,7 @@ void ICM20948_I2C_Passthrough::RunImpl()
 		if (Configure()) {
 			// if configure succeeded then start reading
 			_state = STATE::READ;
-			ScheduleOnInterval(500_ms);
+			ScheduleOnInterval(_motion ? motion_interval_us : 500_ms);
 
 		} else {
 			// CONFIGURE not complete
@@ -172,29 +208,24 @@ void ICM20948_I2C_Passthrough::RunImpl()
 		break;
 
 	case STATE::READ: {
+			bool success;
 
-			bool success = false;
+			if (_motion) {
+				success = ReadMotion(now);
 
-			const uint8_t TEMP_OUT_H = RegisterRead(Register::BANK_0::TEMP_OUT_H);
-			const uint8_t TEMP_OUT_L = RegisterRead(Register::BANK_0::TEMP_OUT_L);
+			} else {
+				const uint8_t temp_high = RegisterRead(Register::BANK_0::TEMP_OUT_H);
+				const uint8_t temp_low = RegisterRead(Register::BANK_0::TEMP_OUT_L);
+				success = UpdateTemperature(combine(temp_high, temp_low));
+			}
 
-			const float TEMP_OUT = combine(TEMP_OUT_H, TEMP_OUT_L);
-
-			// To convert the output of the temperature sensor to degrees C use the following formula: (Document Number: DS-000189 Revision: 1.3)
-			const float TEMP_degC = (TEMP_OUT / TEMPERATURE_SENSITIVITY) + TEMPERATURE_OFFSET;
-
-			// -40°C to +85°C A
-			if (PX4_ISFINITE(TEMP_degC) && (TEMP_degC >= TEMPERATURE_SENSOR_MIN) && (TEMP_degC <= TEMPERATURE_SENSOR_MAX)) {
-				_temperature = TEMP_degC;
-
-				success = true;
-
+			if (success) {
 				if (_failure_count > 0) {
 					_failure_count--;
 				}
-			}
 
-			if (!success) {
+			} else {
+				perf_count(_bad_transfer_perf);
 				_failure_count++;
 
 				// full reset if things are failing consistently
@@ -222,18 +253,21 @@ void ICM20948_I2C_Passthrough::RunImpl()
 	}
 }
 
-void ICM20948_I2C_Passthrough::SelectRegisterBank(enum REG_BANK_SEL_BIT bank, bool force)
+bool ICM20948_I2C_Passthrough::SelectRegisterBank(enum REG_BANK_SEL_BIT bank, bool force)
 {
 	if (bank != _last_register_bank || force) {
-		// select BANK_0
 		uint8_t cmd_bank_sel[2];
 		cmd_bank_sel[0] = static_cast<uint8_t>(Register::BANK_0::REG_BANK_SEL);
 		cmd_bank_sel[1] = bank;
 
-		transfer(cmd_bank_sel, 2, nullptr, 0);
+		if (transfer(cmd_bank_sel, sizeof(cmd_bank_sel), nullptr, 0) != PX4_OK) {
+			return false;
+		}
 
 		_last_register_bank = bank;
 	}
+
+	return true;
 }
 
 bool ICM20948_I2C_Passthrough::Configure()
@@ -254,7 +288,62 @@ bool ICM20948_I2C_Passthrough::Configure()
 		}
 	}
 
-	return success;
+	return success && (!_motion || ConfigureMotion());
+}
+
+bool ICM20948_I2C_Passthrough::ConfigureMotion()
+{
+	using Register::BANK_0;
+	using Register::BANK_2;
+
+	// Match the PlatformIO driver's wake sequence and full-scale ranges.
+	return RegisterWrite(BANK_0::PWR_MGMT_2, 0)
+	       && RegisterWrite(BANK_2::ACCEL_SMPLRT_DIV_1, 0)
+	       && RegisterWrite(BANK_2::ACCEL_SMPLRT_DIV_2, sample_rate_divider)
+	       && RegisterWrite(BANK_2::GYRO_SMPLRT_DIV, sample_rate_divider)
+	       && RegisterWrite(BANK_2::ACCEL_CONFIG, accel_config)
+	       && RegisterWrite(BANK_2::GYRO_CONFIG_1, gyro_config)
+	       && RegisterRead(BANK_2::ACCEL_SMPLRT_DIV_2) == sample_rate_divider
+	       && RegisterRead(BANK_2::GYRO_SMPLRT_DIV) == sample_rate_divider
+	       && RegisterRead(BANK_2::ACCEL_CONFIG) == accel_config
+	       && RegisterRead(BANK_2::GYRO_CONFIG_1) == gyro_config
+	       && SelectRegisterBank(REG_BANK_SEL_BIT::USER_BANK_0);
+}
+
+bool ICM20948_I2C_Passthrough::ReadMotion(hrt_abstime timestamp_sample)
+{
+	const uint8_t start = static_cast<uint8_t>(Register::BANK_0::ACCEL_XOUT_H);
+	uint8_t sample[14]{};
+
+	if (transfer(&start, 1, sample, sizeof(sample)) != PX4_OK
+	    || !UpdateTemperature(combine(sample[12], sample[13]))) {
+		return false;
+	}
+
+	const uint64_t errors = perf_event_count(_bad_register_perf) + perf_event_count(_bad_transfer_perf);
+	_motion->accel.set_error_count(errors);
+	_motion->gyro.set_error_count(errors);
+	_motion->accel.set_temperature(_temperature);
+	_motion->gyro.set_temperature(_temperature);
+
+	// Use the same forward-right-down conversion as the SPI driver.
+	_motion->accel.update(timestamp_sample, combine(sample[0], sample[1]),
+			      -combine(sample[2], sample[3]), -combine(sample[4], sample[5]));
+	_motion->gyro.update(timestamp_sample, combine(sample[6], sample[7]),
+			     -combine(sample[8], sample[9]), -combine(sample[10], sample[11]));
+	return true;
+}
+
+bool ICM20948_I2C_Passthrough::UpdateTemperature(int16_t raw_temperature)
+{
+	const float temperature = raw_temperature / TEMPERATURE_SENSITIVITY + TEMPERATURE_OFFSET;
+
+	if (temperature < TEMPERATURE_SENSOR_MIN || temperature > TEMPERATURE_SENSOR_MAX) {
+		return false;
+	}
+
+	_temperature = temperature;
+	return true;
 }
 
 template <typename T>
@@ -280,23 +369,23 @@ bool ICM20948_I2C_Passthrough::RegisterCheck(const T &reg_cfg)
 template <typename T>
 uint8_t ICM20948_I2C_Passthrough::RegisterRead(T reg)
 {
-	SelectRegisterBank(reg);
-
 	uint8_t cmd = static_cast<uint8_t>(reg);
 	uint8_t value = 0;
-	transfer(&cmd, 1, &value, 1);
+
+	if (SelectRegisterBank(reg)) {
+		transfer(&cmd, 1, &value, 1);
+	}
+
 	return value;
 }
 
 template <typename T>
-void ICM20948_I2C_Passthrough::RegisterWrite(T reg, uint8_t value)
+bool ICM20948_I2C_Passthrough::RegisterWrite(T reg, uint8_t value)
 {
-	SelectRegisterBank(reg);
-
 	uint8_t cmd[2];
 	cmd[0] = static_cast<uint8_t>(reg);
 	cmd[1] = value;
-	transfer(cmd, sizeof(cmd), nullptr, 0);
+	return SelectRegisterBank(reg) && transfer(cmd, sizeof(cmd), nullptr, 0) == PX4_OK;
 }
 
 template <typename T>

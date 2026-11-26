@@ -227,8 +227,22 @@ INA226::collect()
 	// success = success && (read(INA226_REG_SHUNTVOLTAGE, _shunt) == PX4_OK);
 
 	if (setConnected(success)) {
-		_battery.updateVoltage(static_cast<float>(_bus_voltage * INA226_VSCALE));
-		_battery.updateCurrent(static_cast<float>(_current * _current_lsb));
+		const float voltage = _bus_voltage * INA226_VSCALE;
+		const float current = _current * _current_lsb;
+		_battery.updateVoltage(voltage);
+		_battery.updateCurrent(current);
+
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+		if (get_device_bus() == BOARD_INPUT_POWER_INA226_BUS
+		    && get_device_address() == BOARD_INPUT_POWER_INA226_ADDRESS) {
+			power_monitor_s input_power{};
+			input_power.timestamp = hrt_absolute_time();
+			input_power.voltage_v = voltage;
+			input_power.current_a = current;
+			input_power.power_w = voltage * current;
+			_input_power_pub.publish(input_power);
+		}
+#endif
 	}
 
 	_battery.updateAndPublishBatteryStatus(hrt_absolute_time());

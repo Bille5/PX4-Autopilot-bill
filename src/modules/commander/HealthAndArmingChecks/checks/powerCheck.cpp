@@ -75,6 +75,47 @@ void PowerChecks::checkAndReport(const Context &context, Report &reporter)
 		return;
 	}
 
+#ifdef BOARD_INPUT_POWER_INA226_BUS
+	power_monitor_s input_power{};
+
+	if (!_input_power_sub.copy(&input_power) || input_power.timestamp == 0
+	    || hrt_elapsed_time(&input_power.timestamp) > 1_s) {
+		/* EVENT
+		 * @description
+		 * Check that the onboard input power monitor is reporting.
+		 */
+		reporter.healthFailure(NavModes::All, health_component_t::system, events::ID("check_board_input_power_unavailable"),
+				       events::Log::Error, "Board input power measurement unavailable");
+
+		if (reporter.mavlink_log_pub()) {
+			mavlink_log_critical(reporter.mavlink_log_pub(), "Preflight Fail: Board input power measurement unavailable");
+		}
+
+		return;
+	}
+
+	const float voltage = input_power.voltage_v;
+
+	if (voltage < BOARD_INPUT_POWER_MIN_V || voltage > BOARD_INPUT_POWER_MAX_V) {
+		/* EVENT
+		 * @description
+		 * Check the voltage at the board power connector.
+		 */
+		reporter.healthFailure<float, float, float>(NavModes::All, health_component_t::system,
+				events::ID("check_board_input_power_range"), events::Log::Error,
+				"Board input voltage {1:.2} V outside {2:.2}-{3:.2} V",
+				voltage, BOARD_INPUT_POWER_MIN_V, BOARD_INPUT_POWER_MAX_V);
+
+		if (reporter.mavlink_log_pub()) {
+			mavlink_log_critical(reporter.mavlink_log_pub(), "Preflight Fail: Board input voltage %.2f V out of range",
+					     (double)voltage);
+		}
+
+		return;
+	}
+
+	checkPowerModuleCount(1, reporter);
+#else
 	system_power_s system_power;
 
 	if (_system_power_sub.copy(&system_power)) {
@@ -139,27 +180,7 @@ void PowerChecks::checkAndReport(const Context &context, Report &reporter)
 				}
 			}
 
-			const int power_module_count = math::countSetBits(system_power.brick_valid);
-
-			if (power_module_count < _param_com_power_count.get()) {
-				/* EVENT
-				 * @description
-				 * Available power modules: {1}.
-				 * Required power modules: {2}.
-				 *
-				 * <profile name="dev">
-				 * This check can be configured via <param>COM_POWER_COUNT</param> parameter.
-				 * </profile>
-				 */
-				reporter.armingCheckFailure<uint8_t, uint8_t>(NavModes::All, health_component_t::system,
-						events::ID("check_avionics_power_redundancy"),
-						events::Log::Error, "Power redundancy not met", power_module_count, _param_com_power_count.get());
-
-				if (reporter.mavlink_log_pub()) {
-					mavlink_log_critical(reporter.mavlink_log_pub(), "Preflight Fail: Power redundancy not met: %d of %" PRId32 "",
-							     power_module_count, _param_com_power_count.get());
-				}
-			}
+			checkPowerModuleCount(math::countSetBits(system_power.brick_valid), reporter);
 
 			// Overcurrent detection
 			if (system_power.hipower_5v_oc) {
@@ -206,6 +227,30 @@ void PowerChecks::checkAndReport(const Context &context, Report &reporter)
 
 		if (reporter.mavlink_log_pub()) {
 			mavlink_log_critical(reporter.mavlink_log_pub(), "Preflight Fail: system power unavailable");
+		}
+	}
+#endif
+}
+
+void PowerChecks::checkPowerModuleCount(int power_module_count, Report &reporter)
+{
+	if (power_module_count < _param_com_power_count.get()) {
+		/* EVENT
+		 * @description
+		 * Available power modules: {1}.
+		 * Required power modules: {2}.
+		 *
+		 * <profile name="dev">
+		 * This check can be configured via <param>COM_POWER_COUNT</param> parameter.
+		 * </profile>
+		 */
+		reporter.armingCheckFailure<uint8_t, uint8_t>(NavModes::All, health_component_t::system,
+				events::ID("check_avionics_power_redundancy"),
+				events::Log::Error, "Power redundancy not met", power_module_count, _param_com_power_count.get());
+
+		if (reporter.mavlink_log_pub()) {
+			mavlink_log_critical(reporter.mavlink_log_pub(), "Preflight Fail: Power redundancy not met: %d of %" PRId32 "",
+					     power_module_count, _param_com_power_count.get());
 		}
 	}
 }
