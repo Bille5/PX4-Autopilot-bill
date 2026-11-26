@@ -53,6 +53,7 @@
 #include <lib/perf/perf_counter.h>
 #include <mathlib/mathlib.h>
 #include <matrix/math.hpp>
+#include <px4_boardconfig.h>
 #include <px4_platform_common/atomic.h>
 #include <px4_platform_common/cli.h>
 #include <px4_platform_common/getopt.h>
@@ -1098,16 +1099,16 @@ GPS::run()
 			 * additional time before outputting the first navigation data. To account for this, there is
 			 * an init timeout. As soon as the GPS is healthy, the timeout is decreased. This allows for
 			 * a quick reaction to a connection loss. */
-			unsigned receive_timeout = TIMEOUT_INIT_5HZ;
-			unsigned healthy_timeout = TIMEOUT_5HZ;
+			// A moving-base rover may reduce its navigation rate to 1 Hz.
+			bool use_1hz_timeout = (ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBase)
+					       || (ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBaseUART1);
 
-			if ((ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBase)
-			    || (ubx_mode == GPSDriverUBX::UBXMode::RoverWithMovingBaseUART1)) {
-				/* The MB rover will wait as long as possible to compute a navigation solution,
-				 * possibly lowering the navigation rate all the way to 1 Hz while doing so. */
-				receive_timeout = TIMEOUT_INIT_1HZ;
-				healthy_timeout = TIMEOUT_1HZ;
-			}
+#if defined(BOARD_GPS_NMEA_1HZ)
+			use_1hz_timeout |= _instance == Instance::Main && _mode == gps_driver_mode_t::NMEA;
+#endif
+
+			unsigned receive_timeout = use_1hz_timeout ? TIMEOUT_INIT_1HZ : TIMEOUT_INIT_5HZ;
+			unsigned healthy_timeout = use_1hz_timeout ? TIMEOUT_1HZ : TIMEOUT_5HZ;
 
 			if (_dump_communication_mode != gps_dump_comm_mode_t::Disabled) {
 				/* Dumping the RTCM3/UBX data requires additional parsing and storing of data via uORB.

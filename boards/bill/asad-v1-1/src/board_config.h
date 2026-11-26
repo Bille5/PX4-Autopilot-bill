@@ -84,6 +84,9 @@
 
 #define GPIO_BARO_DRDY          /* PD10 */ (GPIO_INPUT|GPIO_PULLDOWN|GPIO_PORTD|GPIO_PIN10)
 
+/* The primary Quectel L76-L sends NMEA navigation data at 1 Hz. */
+#define BOARD_GPS_NMEA_1HZ
+
 /* GPS reset via TXS0102 level shifter */
 
 #define GPIO_GPS_RESET          /* PD11 */ (GPIO_OUTPUT|GPIO_PUSHPULL|GPIO_SPEED_2MHz|GPIO_OUTPUT_SET|GPIO_PORTD|GPIO_PIN11)
