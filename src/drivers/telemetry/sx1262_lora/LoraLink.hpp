@@ -6,12 +6,7 @@
 
 /**
  * Virtual character device exposing the LoRa link as a byte pipe.
- * The mavlink module opens this exactly as it would a UART.
- *
- * NOTE: this class deliberately does NOT answer TCGETS/TCSETS.
- * MAVLink's tcgetattr() call on this device must be bypassed via a
- * MAVLINK_MODE_LORA early-return patch in mavlink_main.cpp, mirroring
- * how MAVLINK_MODE_IRIDIUM is handled. See project notes.
+ * MAVLink reads and writes this device without configuring UART settings.
  */
 class LoraLink : public cdev::CDev
 {

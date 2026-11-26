@@ -88,14 +88,20 @@ pollevent_t LoraLink::poll_state(struct file *filp)
 {
 	pollevent_t state = 0;
 
+	pthread_mutex_lock(&_rx_mutex);
+
 	if (_rx_write_idx > _rx_read_idx) {
 		state |= POLLIN;
 	}
+
+	pthread_mutex_unlock(&_rx_mutex);
+	pthread_mutex_lock(&_tx_mutex);
 
 	if (TX_BUF_LEN - (_tx_write_idx - _tx_read_idx) > 0) {
 		state |= POLLOUT;
 	}
 
+	pthread_mutex_unlock(&_tx_mutex);
 	return state;
 }
 
@@ -144,4 +150,8 @@ void LoraLink::push_rx(const uint8_t *src, size_t len)
 	}
 
 	pthread_mutex_unlock(&_rx_mutex);
+
+	if (len > 0) {
+		poll_notify(POLLIN);
+	}
 }

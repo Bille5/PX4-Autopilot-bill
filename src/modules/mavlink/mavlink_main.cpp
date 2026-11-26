@@ -601,6 +601,13 @@ Mavlink::mavlink_open_uart(const int baud, const char *uart_name, const FLOW_CON
 		return _uart_fd;
 	}
 
+#if defined(__PX4_NUTTX)
+	// The SX1262 driver exposes a byte stream without UART settings.
+	if (strcmp(uart_name, "/dev/lora0") == 0) {
+		return _uart_fd;
+	}
+#endif
+
 	/* Try to set baud rate */
 	struct termios uart_config;
 	int termios_state;
