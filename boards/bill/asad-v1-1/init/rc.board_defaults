@@ -3,6 +3,9 @@
 # Flight controller mounting: yaw 180 degrees relative to the airframe.
 param set-default SENS_BOARD_ROT 4
 
+# V1.2 has no microSD slot. Keep waypoint storage in RAM.
+param set-default SYS_DM_BACKEND 1
+
 # Quectel L76 GPS on UART4.
 param set-default SER_GPS1_BAUD 9600
 param set-default GPS_1_PROTOCOL 6
